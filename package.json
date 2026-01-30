@@ -12,6 +12,7 @@
   },
   "scripts": {
     "dev": "nodemon --exec tsx src/index.ts",
+    "seed": "ts-node prisma/seed.ts",
     "build": "npx prisma generate && tsc",
     "start": "node dist/src/index.js"
   },
