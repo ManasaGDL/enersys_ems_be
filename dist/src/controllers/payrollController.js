@@ -118,10 +118,7 @@ const generatePayrollRun = async (req, res) => {
         // ✅ Create fresh payroll items (snapshot)
         const itemsToCreate = employees.map((emp) => {
             const monthlySalary = Number(emp.salary || 0);
-            const attendance = attendanceMap.get(emp.id) || {
-                presentDays: 0,
-                otHours: 0,
-            };
+            const attendance = attendanceMap.get(emp.id) || { presentDays: 0, otHours: 0 };
             const presentDays = attendance.presentDays;
             const otHours = attendance.otHours;
             // ✅ Salary structure breakup fallback
