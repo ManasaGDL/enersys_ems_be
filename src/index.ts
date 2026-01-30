@@ -21,24 +21,18 @@ if (process.env.NODE_ENV !== "production") {
 
 const app = express();
 
-const allowedOrigins = [
-    process.env.FRONTEND_URL,       // production vercel/netlify domain
-    "http://localhost:3000",        // local Next.js
-    "http://localhost:5173"         // local Vite
-].filter(Boolean); // ✅ removes undefined
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 app.use(
     cors({
-        origin: (origin, cb) => {
-            if (!origin) return cb(null, true); // Postman/server
-            if (allowedOrigins.includes(origin)) return cb(null, true);
-            return cb(new Error("CORS blocked: " + origin));
-        },
+        origin: FRONTEND_URL || true, // ✅ if env missing, allow all temporarily
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
+
+app.options("*", cors());
 
 app.options("*", cors());
 
