@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { generatePayrollRun, getPayrollRun, updatePayrollRunStatus } from "../controllers/payrollController.ts";
+import { generatePayrollRun, getPayrollRun, updatePayrollRunStatus } from "../controllers/payrollController";
 
 const router = Router();
 
