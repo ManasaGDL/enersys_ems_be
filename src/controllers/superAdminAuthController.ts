@@ -8,6 +8,10 @@ export const superAdminLogin = async (req: Request, res: Response) => {
         if (!email || !password) {
             return res.status(400).json({ message: "All fields are required" })
         }
+        if (!process.env.JWT_SECRET) {
+            return res.status(500).json({ message: "JWT secret missing" });
+        }
+
         const superAdminexists = await prisma.superAdmin.findUnique({
             where: { email }
         })
