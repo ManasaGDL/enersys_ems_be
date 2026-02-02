@@ -43,7 +43,7 @@ app.use(
 );
 
 // ✅ Preflight
-app.options("*", cors());
+app.options(/.*/, cors());
 
 // ✅ Routes
 app.use("/auth/super-admin", superAdminAuthRoutes);
