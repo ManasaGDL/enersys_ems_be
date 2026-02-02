@@ -21,26 +21,29 @@ if (process.env.NODE_ENV !== "production") {
 
 const app = express();
 
-const FRONTEND_URL = process.env.FRONTEND_URL;
+app.use(express.json());
+
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "http://localhost:3000",
+    "http://localhost:5173",
+].filter(Boolean);
 
 app.use(
     cors({
-        origin: FRONTEND_URL || true, // ✅ if env missing, allow all temporarily
+        origin: (origin, cb) => {
+            if (!origin) return cb(null, true);
+            if (allowedOrigins.includes(origin)) return cb(null, true);
+            return cb(new Error(`CORS blocked: ${origin}`));
+        },
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
 
+// ✅ Preflight
 app.options("*", cors());
-
-app.options("*", cors());
-
-
-app.options("*", cors());
-
-app.options("*", cors());
-app.use(express.json());
 
 // ✅ Routes
 app.use("/auth/super-admin", superAdminAuthRoutes);
@@ -59,7 +62,6 @@ app.get("/health", (_, res) => {
     res.json({ status: "OK" });
 });
 
-// ✅ Railway port support
 const PORT = Number(process.env.PORT) || 4000;
 
 app.listen(PORT, "0.0.0.0", () => {
