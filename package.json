@@ -16,6 +16,7 @@
     "seed": "ts-node prisma/seed.ts",
     "build": "npx prisma generate && tsc",
     "start": "node dist/src/index.js",
+    "migrate:deploy": "prisma migrate deploy",
     "migrate:supabase": "dotenv -e .env.supabase -- prisma migrate deploy",
     "seed:supabase": "dotenv -e .env.supabase -- prisma db seed"
   },
