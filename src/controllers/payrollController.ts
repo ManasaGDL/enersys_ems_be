@@ -9,46 +9,45 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * - If run exists -> return with items + adjustments
  * - If not exists -> return null
  */
-export const
-    getPayrollRun = async (req: Request, res: Response) => {
-        try {
-            const month = Number(req.query.month);
-            const year = Number(req.query.year);
+export const getPayrollRun = async (req: Request, res: Response) => {
+    try {
+        const month = Number(req.query.month);
+        const year = Number(req.query.year);
 
-            if (!month || !year) {
-                return res.status(400).json({ error: "month and year are required" });
-            }
-
-            const run = await prisma.payrollRun.findUnique({
-                where: {
-                    month_year: { month, year },
-                },
-                include: {
-                    items: {
-                        include: {
-                            employee: {
-                                select: {
-                                    id: true,
-                                    firstName: true,
-                                    lastName: true,
-                                    email: true,
-                                    department: { select: { id: true, name: true } },
-                                    role: { select: { id: true, title: true } },
-                                },
-                            },
-                            adjustments: true,
-                        },
-                        orderBy: { createdAt: "desc" },
-                    },
-                },
-            });
-
-            return res.status(200).json(run);
-        } catch (error) {
-            console.error("Error fetching payroll run:", error);
-            return res.status(500).json({ error: "Failed to fetch payroll run" });
+        if (!month || !year) {
+            return res.status(400).json({ error: "month and year are required" });
         }
-    };
+
+        const run = await prisma.payrollRun.findUnique({
+            where: {
+                month_year: { month, year },
+            },
+            include: {
+                items: {
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                email: true,
+                                department: { select: { id: true, name: true } },
+                                role: { select: { id: true, title: true } },
+                            },
+                        },
+                        adjustments: true,
+                    },
+                    orderBy: { createdAt: "desc" },
+                },
+            },
+        });
+
+        return res.status(200).json(run);
+    } catch (error) {
+        console.error("Error fetching payroll run:", error);
+        return res.status(500).json({ error: "Failed to fetch payroll run" });
+    }
+};
 
 /**
  * POST generate payroll for month/year
@@ -63,7 +62,7 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "month and year are required" });
         }
 
-        // ✅ Get global settings (OT config + working days/hours)
+        // ✅ Get global settings (OT config + working hours)
         const settings = await prisma.appSettings.findFirst();
         if (!settings) {
             return res.status(400).json({
@@ -71,9 +70,8 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
             });
         }
 
-        const workingDays = settings.workingDays || 26;
-        const workingHours = settings.workingHours || 8;
         const payrollEndDate = new Date(year, month, 0);
+
         // ✅ Fetch all employees (ACTIVE only is optional)
         const employees = await prisma.employee.findMany({
             where: {
@@ -91,18 +89,26 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
             },
             orderBy: { createdAt: "desc" },
         });
-        console.log(employees);
-        // ✅ Fetch attendance for month/year
+
+        // ✅ Fetch attendance for month/year (updated fields)
         const attendanceList = await prisma.employeeMonthlyAttendance.findMany({
             where: { month, year },
-            select: { employeeId: true, presentDays: true, otHours: true },
+            select: {
+                employeeId: true,
+                workingDays: true,
+                holidays: true,
+                absentDays: true,
+                otHours: true,
+            },
         });
 
         const attendanceMap = new Map(
             attendanceList.map((a) => [
                 a.employeeId,
                 {
-                    presentDays: Number(a.presentDays || 0),
+                    workingDays: Number(a.workingDays || 0),
+                    holidays: Number(a.holidays || 0),
+                    absentDays: Number(a.absentDays || 0),
                     otHours: Number(a.otHours || 0),
                 },
             ])
@@ -121,8 +127,7 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
             },
         });
 
-        // ✅ Delete existing items (optional depending on your design)
-        // For now: regenerate completely each time (DRAFT only)
+        // ✅ Delete existing items (regenerate completely)
         await prisma.payrollItem.deleteMany({
             where: { payrollRunId: run.id },
         });
@@ -131,42 +136,44 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
         const itemsToCreate = employees.map((emp) => {
             const monthlySalary = Number(emp.salary || 0);
 
-            const attendance: { presentDays: number; otHours: number } =
-                attendanceMap.get(emp.id) || { presentDays: 0, otHours: 0 };
+            const attendance =
+                attendanceMap.get(emp.id) || {
+                    workingDays: 0,
+                    holidays: 0,
+                    absentDays: 0,
+                    otHours: 0,
+                };
 
-            const presentDays = attendance.presentDays;
+            const workingDays = attendance.workingDays;
+            const holidays = attendance.holidays;
+            const absentDays = attendance.absentDays;
             const otHours = attendance.otHours;
 
+            // ✅ payableDays = workingDays - absentDays
+            const payableDays = Math.max(0, workingDays - absentDays);
 
             // ✅ Salary structure breakup fallback
             const basicPay = Number(emp.salaryStructure?.basicPay || 0);
             const hra = Number(emp.salaryStructure?.hra || 0);
             const allowance = Number(emp.salaryStructure?.allowance || 0);
 
-            // ✅ regular pay calculation
+            // ✅ Regular pay calculation
             const perDaySalary = workingDays > 0 ? monthlySalary / workingDays : 0;
-            const regularPay = round2(perDaySalary * presentDays);
+            const regularPay = round2(perDaySalary * payableDays);
 
             // ✅ OT pay calculation
-            let otPay = 0;
+            const baseSalaryForOt = monthlySalary > 15000 ? 15000 : monthlySalary;
 
-            if (settings.otType === "FIXED") {
-                const rate = Number(settings.fixedOtRate || 0);
-                otPay = round2(otHours * rate);
-            } else {
-                // MULTIPLIER type
-                const hourlyPay =
-                    workingDays > 0 && workingHours > 0
-                        ? monthlySalary / workingDays / workingHours
-                        : 0;
+            const perDayForOt = workingDays > 0 ? baseSalaryForOt / workingDays : 0;
 
-                const multiplier = Number(settings.otMultiplier || 1);
-                otPay = round2(otHours * hourlyPay * multiplier);
-            }
+            // 9 hours fixed
+            const otPerHour = perDayForOt / 9;
+
+            const otPay = round2(otHours * otPerHour);
 
             const grossPay = round2(regularPay + otPay);
 
-            // ✅ adjustments will be stored separately, but we keep snapshot as 0 initially
+            // ✅ adjustments will be stored separately, but snapshot as 0 initially
             const adjustmentTotal = 0;
             const netPay = round2(grossPay + adjustmentTotal);
 
@@ -176,7 +183,9 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
 
                 monthlySalary,
 
-                presentDays,
+                workingDays,
+                holidays,
+                absentDays,
                 otHours,
 
                 basicPay,
@@ -225,6 +234,7 @@ export const generatePayrollRun = async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Failed to generate payroll" });
     }
 };
+
 export const updatePayrollRunStatus = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
