@@ -28,19 +28,25 @@ const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:5173",
 ].filter(Boolean);
-
 app.use(
     cors({
-        origin: (origin, cb) => {
-            if (!origin) return cb(null, true);
-            if (allowedOrigins.includes(origin)) return cb(null, true);
-            return cb(new Error(`CORS blocked: ${origin}`));
-        },
+        origin: true,
         credentials: true,
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
+
+// app.use(
+//     cors({
+//         origin: (origin, cb) => {
+//             if (!origin) return cb(null, true);
+//             if (allowedOrigins.includes(origin)) return cb(null, true);
+//             return cb(new Error(`CORS blocked: ${origin}`));
+//         },
+//         credentials: true,
+//         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+//         allowedHeaders: ["Content-Type", "Authorization"],
+//     })
+// );
 
 // ✅ Preflight
 app.options(/.*/, cors());
@@ -63,7 +69,10 @@ app.get("/health", (_, res) => {
 });
 
 const PORT = Number(process.env.PORT) || 4000;
-
+app.enableCors({
+    origin: ['https://enersys-ems-be.onrender.com'],
+    credentials: true,
+});
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`✅ Backend running on port ${PORT}`);
 });
