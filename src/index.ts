@@ -69,10 +69,10 @@ app.get("/health", (_, res) => {
 });
 
 const PORT = Number(process.env.PORT) || 4000;
-app.enableCors({
-    origin: ['https://enersys-ems-be.onrender.com'],
-    credentials: true,
-});
+// app.enableCors({
+//     origin: ['https://enersys-ems-be.onrender.com'],
+//     credentials: true,
+// });
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`✅ Backend running on port ${PORT}`);
 });
